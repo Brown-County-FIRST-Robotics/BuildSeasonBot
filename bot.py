@@ -28,11 +28,11 @@ class MyClient(discord.Client):
         channel = client.get_channel(settings['channel'])
 
         #clean out old messasges
-        date = datetime.datetime.now() - datetime.timedelta(days=7)
+        date = datetime.datetime.now() - datetime.timedelta(days=1)
         replied = set()
         unused = []
-        async for message in channel.history(after=date):
-#            print(message.created_at, message.author.name, message.content)
+        async for message in channel.history(after=date, limit=1000):
+            #print(message.created_at, message.author.name, message.content)
             if message.reference:
                 replied.add(message.reference.message_id)
 #2.4        if message.author == self.user and not message.reactions and not message.stickers and not message.thread:
