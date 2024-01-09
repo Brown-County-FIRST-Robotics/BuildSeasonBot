@@ -5,6 +5,10 @@ import datetime
 import asyncio
 import logging
 import json
+import zoneinfo
+
+tz = zoneinfo.ZoneInfo('America/Chicago')
+
 
 with open('settings.json', 'r') as f:
     settings = json.load(f)
@@ -16,8 +20,10 @@ log = logging.getLogger('bot')
 
 
 class MyClient(discord.Client):
-    async def sendDater(self, silent=True):
+    async def sendDater(self, silent=True, force=False):
+
         today = datetime.date.today()
+
         if self.lastToday != today:
             self.lastToday = today
             image = clock.dater(today)
@@ -29,23 +35,34 @@ class MyClient(discord.Client):
 
         #clean out old messasges
         date = datetime.datetime.now() - datetime.timedelta(days=1)
+        validfound=None
         replied = set()
         unused = []
         async for message in channel.history(after=date, limit=1000):
             #print(message.created_at, message.author.name, message.content)
             if message.reference:
                 replied.add(message.reference.message_id)
+            if message.author == self.user and not message.content and message.attachments and message.attachments[0].filename=='countdown.png':
+                if message.created_at.astimezone(tz).date() == today and not force:
+                    #be willing to trust an existing message that seems right and not print ours.  
+                    #helps not make "new" messages when the bot gets restarted
+                    #could fail on a message where the image is generated right before midnight but the post time is after midnight.
+                    #we dont do this on force becasue if someone calls us it is to move the message up
+                    validfound = message.id
+
 #2.4        if message.author == self.user and not message.reactions and not message.stickers and not message.thread:
             if message.author == self.user and not message.reactions and not message.stickers and not channel.get_thread(message.id) :
                unused.append(message)
 
         for message in unused:
-            if message.id not in replied:
+            if message.id not in replied and message.id != validfound:
+#                print('would delete')
                 await message.delete()
                 
-
-        file = discord.File(io.BytesIO(self.image), filename="countdown.png")
-        await channel.send("", file=file, silent=silent)
+#        print('post')
+        if validfound is None:
+            file = discord.File(io.BytesIO(self.image), filename="countdown.png")
+            await channel.send("", file=file, silent=silent)
 
 
     async def on_ready(self):
@@ -75,7 +92,7 @@ class MyClient(discord.Client):
         if any(m==self.user for m in message.mentions):
 #        if message.content == 'ping':
             log.info('user mention')
-            await self.sendDater()
+            await self.sendDater(force=True)
 
 intents = discord.Intents.default()
 intents.message_content = True
