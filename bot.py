@@ -1,3 +1,5 @@
+#!./venv/bin/python
+
 import clock
 import discord
 import io
