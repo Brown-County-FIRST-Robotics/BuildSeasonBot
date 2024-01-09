@@ -1,13 +1,15 @@
 # install
+```bash
 git clone  git@github.com:Brown-County-FIRST-Robotics/BuildSeasonBot.git
 cd BuildSeasonBot/
 python3 -m venv venv
 . venv/bin/activate
 pip install -r requirements.txt
-
+```
 # run
+```bash
 python bot.py 
-
+```
 
 # todo
 - [ ] make competition names and dates configurable in settings
