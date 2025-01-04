@@ -1,15 +1,13 @@
 #!./venv/bin/python
 
-import clock
+from clock import CountdownClock
 import discord
 import io
 import datetime
 import asyncio
 import logging
 import json
-import zoneinfo
 
-tz = zoneinfo.ZoneInfo('America/Chicago')
 
 
 with open('settings.json', 'r') as f:
@@ -18,17 +16,18 @@ with open('settings.json', 'r') as f:
 log = logging.getLogger('bot')
 
 
-
-
-
 class MyClient(discord.Client):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.clock = CountdownClock.fromConfigYaml()
+
     async def sendDater(self, silent=True, force=False):
 
-        today = datetime.date.today()
+        now = datetime.datetime.now(tz=self.clock.timezone)
 
-        if self.lastToday != today:
-            self.lastToday = today
-            image = clock.dater(today)
+        if self.lastToday != now.date():
+            self.lastToday = now.date()
+            image = self.clock.GetStatusImage(now)
             imgfile = io.BytesIO()
             image.save(imgfile, format='PNG')
             self.image = imgfile.getvalue()
@@ -45,7 +44,7 @@ class MyClient(discord.Client):
             if message.reference:
                 replied.add(message.reference.message_id)
             if message.author == self.user and not message.content and message.attachments and message.attachments[0].filename=='countdown.png':
-                if message.created_at.astimezone(tz).date() == today and not force:
+                if message.created_at.astimezone(self.clock.timezone).date() == now.date() and not force:
                     #be willing to trust an existing message that seems right and not print ours.  
                     #helps not make "new" messages when the bot gets restarted
                     #could fail on a message where the image is generated right before midnight but the post time is after midnight.
@@ -74,7 +73,7 @@ class MyClient(discord.Client):
 
         async def periodic():
             while True:
-                today = datetime.date.today()
+                today = datetime.datetime.now(tz=self.clock.timezone).date()
                 if self.lastToday != today:
                     log.info('periodic update')
                     await self.sendDater()

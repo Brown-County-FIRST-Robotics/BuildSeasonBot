@@ -1,0 +1,21 @@
+timezone: America/Chicago
+events:
+ - when: &kickoff 2025-01-04 12:00:00-05
+   name: Kickoff
+   length: 4 hours
+ - when: 2025-02-16 06:00:00
+   name: Sussex
+   detail: Week 0 Regional
+   length: 1
+ - when: 2025-02-26 06:00:00
+   name: Duluth
+   detail: Northern Lights Regional
+   length: 4
+   count down from: *kickoff
+ - when: 2025-03-19 06:00:00
+   name: La Crosse
+   detail: Seven Rivers Regional
+   length: 4
+
+
+

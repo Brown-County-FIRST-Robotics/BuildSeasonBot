@@ -7,3 +7,4 @@ idna==3.6
 multidict==6.0.4
 pillow==10.2.0
 yarl==1.9.4
+PyYAML==6.0.2

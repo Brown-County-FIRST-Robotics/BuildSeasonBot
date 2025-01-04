@@ -1,10 +1,13 @@
 import math
 from PIL import Image, ImageFont, ImageDraw, ImageColor
 import datetime
+import dataclasses
+import yaml
+from zoneinfo import ZoneInfo
+import bisect
+import re
 
-
-
-def statusimg(v, text):
+def statusimg(remain, text):
 
  size = (1000,1000)
 
@@ -57,8 +60,8 @@ def statusimg(v, text):
   circat(v)
 
 
-
- ring(v)  
+ if remain is not None:
+   ring(remain)  
 
  sz=1
  while 1:
@@ -80,45 +83,131 @@ def statusimg(v, text):
  return image
 
 
-def timer(days, total, where):
+def annotatedstatusimg(timeleft:datetime.timedelta, totaltime:datetime.timedelta, where:str, detail:str=''):
 
- if days > 14:
-   text = f'{days/7:.1f} weeks left\nuntill {where}'
- elif days > 1:
-   text = f'{days} days left\nuntill {where}'
- elif days == 1:
-   text = f'1 day left\nuntill {where}'
+ if timeleft.days >= 14:
+   w = timeleft.days/7
+   if int(w)==w:
+     text = f'{w:.0f} weeks left\nuntil {where}'
+   else:
+     text = f'{w:.1f} weeks left\nuntil {where}'
+ elif timeleft.days > 2:
+   d=timeleft.days
+   text = f'{d} days left\nuntil {where}'
+ elif timeleft.total_seconds()>3600:
+   text = f'{timeleft.total_seconds()/3600:.1f} hours left\nuntil {where}'
+ elif timeleft.total_seconds()>0:
+   text = f'{timeleft.total_seconds()//60} minutes left\nuntil {where}'
  else:
-   text = f'Go to {where}.'
+   text = f'Go to {where}'
 
- return statusimg(days/total, text)
+ if detail:
+    text += f'\n{detail}'
 
+ if totaltime and timeleft.total_seconds()>0:
+   remain=timeleft/totaltime
+ else:
+   remain=0
+ return statusimg(remain, text)
+
+
+
+
+@dataclasses.dataclass
+class Event:
+    name: str
+    when: datetime.datetime
+    length: datetime.timedelta
+    fromwhen: datetime.datetime=None
+    detail: str=None
+
+    @property
+    def end(self) -> datetime.datetime:
+        return self.when + self.length
  
-def dater(today=None):
-  if today is None:
-    today = datetime.date.today()
-  kickoff = datetime.date(2024, 1, 6)
-  sussex = datetime.date(2024, 2, 18) 
-  duluth = datetime.date(2024, 2, 28) 
-  lacrosse = datetime.date(2024, 4, 3) 
+class CountdownClock:
+  def __init__(self, config):
+    timezonestr = config.get('timezone', 'America/Chicago')
+    self.timezone=ZoneInfo(timezonestr)
 
-  if today <= sussex:
-   return timer((sussex-today).days, (sussex-kickoff).days, 'Sussex')
-  elif today <= duluth:
-   return timer((duluth-today).days, (duluth-kickoff).days, 'Duluth')
-  else:
-   return timer((lacrosse-today).days, (lacrosse-kickoff).days, 'Lacrosse')
 
+    events = []
+    for e in config.get('events', []):
+      name=e['name']
+
+      detail=e.get('detail')
+
+      when=e['when']
+      if when.tzinfo is None:
+        when=when.replace(tzinfo=self.timezone)
+
+      length=e.get('length', '0')
+      if type(length) == int:
+        length=datetime.timedelta(days=length)
+      else:
+        m=re.match(r'^(\d+)\s*(d|days|w|weeks|wks|h|hours|hrs|m|minutes|min|mins|s|sec|secs)$', length, re.I)
+        num=int(m.group(1))
+        unit={'h':'hours', 'm': 'minutes', 's': 'seconds', 'd': 'days', 'w':'weeks'}.get(m.group(2)[0].lower(), 'd')
+        length=datetime.timedelta(**{unit: num}) 
+
+      fromwhen=e.get('count down from')
+      
+      events.append(Event(name, when, length, fromwhen, detail))
+
+    events=sorted(events, key=lambda e: e.when)
+
+    #now that they are in order, set the fromwhen values to the previous end if we aren't given a value
+    self.events=[]
+    previousend=None
+    for e in events:
+      if e.fromwhen is None:
+        self.events.append(dataclasses.replace(e, fromwhen=previousend))
+      else:
+        self.events.append(e)
+      previousend=e.end
+
+  @classmethod
+  def fromConfigYaml(cls, name="dates.yaml"):
+    with open(name, 'r') as f:
+      config = yaml.safe_load(f)
+
+    return cls(config)
+
+
+  def GetRelevantEvent(self, when=None):
+    if when is None:
+      when=datetime.datetime.now(tz=self.timezone)
+
+    n=bisect.bisect(self.events, when, key=lambda e: e.when) 
+    #back up in to still occuring events
+    while n and self.events[n-1].end > when:
+      n-=1
+    if n >= len(self.events):
+      return None
+    return self.events[n]
+    
+
+  def GetStatusImage(self, when=None):
+     e = self.GetRelevantEvent(when)
+     if e is None:
+       return None
+     return annotatedstatusimg(e.when-when, 0 if e.fromwhen is None else (e.when-e.fromwhen), e.name, e.detail)
+
+
+    
 
 if __name__ == '__main__':
+ c=CountdownClock.fromConfigYaml()
+
  size = (1000,1000)
  image = Image.new('RGB', size, 'white')
 
  for i in range(88):
-  today = datetime.date(2024, 1, 6) + datetime.timedelta(days=88-i)
+  today = datetime.datetime(2025, 1, 3, tzinfo=c.timezone) + datetime.timedelta(days=88-i)
   print(today)
-  im=dater(today)
-  image.paste(im, (100*(9-i%10), 100*(9-i//10)))
+  im=c.GetStatusImage(today)
+  if im is not None:
+    image.paste(im, (100*(9-i%10), 100*(9-i//10)))
   
  image.show()  
 
