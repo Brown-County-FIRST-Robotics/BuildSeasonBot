@@ -12,6 +12,7 @@ python bot.py
 ```
 
 # Todo
+- [ ] clean up and comment the code as if it wasn't written on the command line in a text editor now that others can see it
 - [X] make competition names and dates configurable in settings
 - [X] make timezone configurable 
 - [X] use the timezone for establishing "today" and deciding when the periodic function should run instead of using bot-linux-server local date
